@@ -1,6 +1,6 @@
 // pages/api/chat.js
 import { streamText } from 'ai';
-import { openai } from '@ai-sdk/openai'; 
+import { google } from '@ai-sdk/google'; 
 
 // This handles incoming POST requests from the React chat frontend
 export default async function handler(req, res) {
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   try {
     const result = await streamText({
-      model: openai('gpt-4o'), // Or gemini-1.5-pro
+      model: google('gemini-1.5-pro-latest'),
       system: systemPrompt,
       messages,
     });
