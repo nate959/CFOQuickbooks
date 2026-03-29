@@ -1,12 +1,19 @@
 // pages/api/chat.js
 import { streamText } from 'ai';
-import { google } from '@ai-sdk/google'; 
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 // This handles incoming POST requests from the React chat frontend
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
   }
+
+  // Explicitly pull the key at Request-Time to bypass Serverless Cold-Boot Caching
+  const secretKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  
+  const googleProvider = createGoogleGenerativeAI({
+    apiKey: secretKey,
+  });
 
   const { messages } = req.body;
 
@@ -15,7 +22,7 @@ export default async function handler(req, res) {
 
   try {
     const result = await streamText({
-      model: google('gemini-1.5-pro-latest'),
+      model: googleProvider('gemini-1.5-pro-latest'),
       system: systemPrompt,
       messages,
     });
