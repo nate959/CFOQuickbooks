@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
 
+// Force Vercel Rebuild
 export default function Home() {
   const [qboConnected, setQboConnected] = useState(false);
   const { messages, input, handleInputChange, handleSubmit } = useChat({ api: '/api/chat' });
