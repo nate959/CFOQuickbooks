@@ -1,10 +1,36 @@
 import { useState, useEffect } from 'react';
-import { useChat } from 'ai/react';
 
 // Force Vercel Rebuild
 export default function Home() {
   const [qboConnected, setQboConnected] = useState(false);
-  const { messages, input, handleInputChange, handleSubmit } = useChat({ api: '/api/chat' });
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+
+  const handleInputChange = (e) => setInput(e.target.value);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const newMessages = [...messages, { id: Date.now(), role: 'user', content: input }];
+    setMessages(newMessages);
+    setInput('');
+
+    try {
+      // Send the entire conversation history to the backend
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newMessages })
+      });
+      
+      const responseText = await res.text();
+      setMessages([...newMessages, { id: Date.now() + 1, role: 'assistant', content: responseText }]);
+    } catch (err) {
+      console.error(err);
+      setMessages([...newMessages, { id: Date.now() + 1, role: 'assistant', content: "Error connecting to CFO Brain." }]);
+    }
+  };
 
   // Check URL if QBO is connected after OAuth callback
   useEffect(() => {
