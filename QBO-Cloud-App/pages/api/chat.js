@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   try {
     const result = await streamText({
-      model: googleProvider('gemini-pro'),
+      model: googleProvider('gemini-2.5-flash'),
       system: systemPrompt,
       messages,
     });
