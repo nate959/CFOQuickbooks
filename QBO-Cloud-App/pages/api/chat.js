@@ -2,10 +2,14 @@
 import { streamText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
+export const config = {
+  runtime: 'edge',
+};
+
 // This handles incoming POST requests from the React chat frontend
-export default async function handler(req, res) {
+export default async function handler(req) {
   if (req.method !== 'POST') {
-    return res.status(405).end('Method Not Allowed');
+    return new Response('Method Not Allowed', { status: 405 });
   }
 
   // Explicitly pull the key at Request-Time to bypass Serverless Cold-Boot Caching
@@ -15,7 +19,7 @@ export default async function handler(req, res) {
     apiKey: secretKey,
   });
 
-  const { messages } = req.body;
+  const { messages } = await req.json();
 
   // Set up the system prompt to impersonate the Knockout CFO based on the PDF logic
   const systemPrompt = `You are an AI Financial Analyst for 'Knockout'. Keep answers concise. Connect your answers to QuickBooks data logic (mocked for now, assume Gross Profit is 58.4%, Direct LER target is 3.0x). Answer questions regarding Marketing, Fuel, and Net Income goals professionally.`;
@@ -27,12 +31,10 @@ export default async function handler(req, res) {
       messages,
     });
 
-    // Stream the AI response seamlessly back to the client
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    result.pipeDataStreamToResponse(res);
+    // Natively stream using Web Responses
+    return result.toDataStreamResponse();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to generate AI response' });
+    return new Response(JSON.stringify({ error: 'Failed to generate AI response' }), { status: 500, headers: {'Content-Type':'application/json'} });
   }
 }
