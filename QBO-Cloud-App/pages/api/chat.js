@@ -28,21 +28,19 @@ export default async function handler(req) {
       try {
           // Attempt Intuit Production YTD Profit & Loss Report endpoint
           let isSandbox = false;
-          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65`, {
+          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month`, {
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
           });
 
           if (qboRes.ok) {
               const qboData = await qboRes.json();
-              qboContext = `LIVE QUICKBOOKS YTD DATA (PRODUCTION LIVE DATA):\n`;
-              // Extract the top level summary rows (Gross Profit, Total Expenses, Net Income)
-              if (qboData.Rows && qboData.Rows.Row) {
-                  qboData.Rows.Row.forEach(row => {
-                      if (row.Summary && row.Summary.ColData && row.Summary.ColData.length >= 2) {
-                          qboContext += `- ${row.Summary.ColData[0].value}: $${row.Summary.ColData[1].value}\n`;
-                      }
-                  });
-              }
+              qboContext = `LIVE QUICKBOOKS MASTER LEDGER JSON (PRODUCTION ACTUALS):\n`;
+              // Dump the ENTIRE RAW JSON MATRIX for God-Mode AI Analysis
+              qboContext += JSON.stringify({
+                  Header: qboData.Header,
+                  Columns: qboData.Columns,
+                  Rows: qboData.Rows
+              });
           } else {
               const errBody = await qboRes.text();
               qboContext = `Error: Intuit API physically rejected the connection. HTTP Status: ${qboRes.status}. Exact Intuit JSON Response: ${errBody}`;
@@ -52,14 +50,17 @@ export default async function handler(req) {
       }
   }
 
-  // Set up the system prompt to impersonate the Knockout CFO
-  const systemPrompt = `You are a strict, top-tier AI Financial Analyst for 'Knockout'. Keep answers incredibly concise and professional. 
+  // Set up the omniscient system prompt
+  const systemPrompt = `You are a brilliant, elite AI Chief Financial Officer for a home inspection company called 'Knockout'. Keep answers incredibly concise, professional, and directly actionable.
 
-Below is the literal, live Profit & Loss data synced right now from the user's QuickBooks Online:
+Critically analyze this raw, massive Intuit QuickBooks JSON dataset synced physically live from the user's actual 12-Month Profit & Loss ledger:
 ---
 ${qboContext}
 ---
-When answering questions regarding their deposits, gross profit, expenses, or net income, you MUST use the exact numbers printed above. Do not invent numbers.`;
+INTRUCTIONS FOR READING THE JSON:
+1. The 'Columns' array defines the column mapping. Column index 0 is the Account Name. Every subsequent column matches a specific historical Month ending in the final column which is the YTD Total.
+2. The 'Rows' array contains deeply nested sub-accounts (e.g. Payroll, Advertising, Fuel, Subscriptions).
+3. If the user asks about ANY historic specific expense (e.g. "What was our payroll in March?"), smoothly traverse the dense ColData arrays to extract that exact value string and formulate a perfect business-analysis response. Do not invent numbers. Answer dynamically and autonomously based exclusively on the JSON structure provided.`;
 
   // Map messages into strict Gemini native format
   const geminiContents = messages.map(m => ({
