@@ -31,8 +31,13 @@ export default async function handler(req) {
       messages,
     });
 
-    // Natively stream using Web Responses
-    return result.toDataStreamResponse();
+    // Natively stream using generic primitive Web Streams to completely bypass Vercel's 'ai/data-stream' bug format
+    return new Response(result.textStream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
   } catch (err) {
     console.error(err);
     return new Response(JSON.stringify({ error: 'Failed to generate AI response' }), { status: 500, headers: {'Content-Type':'application/json'} });
