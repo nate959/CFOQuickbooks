@@ -27,10 +27,10 @@ export default async function handler(req, res) {
       messages,
     });
 
-    // Stream the AI response back to the client
+    // Stream the AI raw text natively back to the client
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
-    result.pipeDataStreamToResponse(res);
+    result.pipeTextStreamToResponse(res);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to generate AI response' });
