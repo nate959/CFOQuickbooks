@@ -1,10 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Chart from 'chart.js/auto';
 
 // Force Vercel Rebuild
 export default function Home() {
   const [qboConnected, setQboConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  
+  // Dashboard Metrics State
+  const [kpis, setKpis] = useState({ totalIncome: 0, totalExpenses: 0, grossProfit: 0, netIncome: 0 });
+  const [kpiLoading, setKpiLoading] = useState(true);
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
 
   const handleInputChange = (e) => setInput(e.target.value);
 
@@ -40,6 +47,54 @@ export default function Home() {
       setQboConnected(true);
     }
   }, []);
+
+  // Fetch Dashboard metrics continuously when connected
+  useEffect(() => {
+    if (qboConnected) {
+      setKpiLoading(true);
+      fetch('/api/dashboard', { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.error) setKpis(data);
+            setKpiLoading(false);
+        })
+        .catch(err => {
+            console.error(err);
+            setKpiLoading(false);
+        });
+    }
+  }, [qboConnected]);
+
+  // Hook Chart.js into HTML Canvas dynamically
+  useEffect(() => {
+      if (!kpiLoading && chartRef.current && qboConnected) {
+          if (chartInstance.current) chartInstance.current.destroy();
+
+          chartInstance.current = new Chart(chartRef.current, {
+              type: 'bar',
+              data: {
+                  labels: ['Total Income', 'Gross Profit', 'Total Expenses', 'Net Income'],
+                  datasets: [{
+                      label: 'YTD (USD)',
+                      data: [kpis.totalIncome, kpis.grossProfit, kpis.totalExpenses, kpis.netIncome],
+                      backgroundColor: ['rgba(34,197,94,0.6)', 'rgba(59,130,246,0.6)', 'rgba(239,68,68,0.6)', 'rgba(168,85,247,0.6)'],
+                      borderColor: ['rgba(34,197,94,1)', 'rgba(59,130,246,1)', 'rgba(239,68,68,1)', 'rgba(168,85,247,1)'],
+                      borderWidth: 1,
+                      borderRadius: 6
+                  }]
+              },
+              options: {
+                  responsive: true, maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: {
+                      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)', callback: function(val) { return '$' + val.toLocaleString(); } } },
+                      x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.7)' } }
+                  }
+              }
+          });
+      }
+      return () => { if (chartInstance.current) chartInstance.current.destroy(); }
+  }, [kpis, kpiLoading, qboConnected]);
 
   if (!qboConnected) {
     return (
@@ -98,23 +153,36 @@ export default function Home() {
                 </div>
             </header>
             
-            <div className="grid grid-cols-4 gap-4 mb-6 relative z-10">
-                {/* LER KPI Box */}
-                <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform">
-                    <h3 className="text-gray-400 text-sm font-semibold mb-1">Direct LER Target</h3>
-                    <div className="flex items-end justify-between"><span className="text-2xl font-bold">3.2x</span></div>
-                    <div className="w-full bg-gray-700 h-1 mt-3 rounded"><div className="bg-greenaccent h-1 rounded" style={{width: '80%'}}></div></div>
+            <div className="grid grid-cols-4 gap-4 mb-6 relative z-10 w-full">
+                {/* Total Income KPI Box */}
+                <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform col-span-1">
+                    <h3 className="text-gray-400 text-sm font-semibold mb-1">YTD Total Income</h3>
+                    <div className="flex items-end justify-between"><span className="text-2xl font-bold text-green-400">{kpiLoading ? '...' : `$${kpis.totalIncome.toLocaleString()}`}</span></div>
                 </div>
-                 <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform">
-                    <h3 className="text-gray-400 text-sm font-semibold mb-1">Gross Profit %</h3>
-                    <div className="flex items-end justify-between"><span className="text-2xl font-bold">58.4%</span></div>
-                    <div className="w-full bg-gray-700 h-1 mt-3 rounded"><div className="bg-greenaccent h-1 rounded" style={{width: '60%'}}></div></div>
+                {/* Gross Profit KPI Box */}
+                <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform col-span-1">
+                    <h3 className="text-gray-400 text-sm font-semibold mb-1">Gross Profit</h3>
+                    <div className="flex items-end justify-between"><span className="text-2xl font-bold text-blue-400">{kpiLoading ? '...' : `$${kpis.grossProfit.toLocaleString()}`}</span></div>
+                </div>
+                {/* Expenses KPI Box */}
+                <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform col-span-1">
+                    <h3 className="text-gray-400 text-sm font-semibold mb-1">Total Expenses</h3>
+                    <div className="flex items-end justify-between"><span className="text-2xl font-bold text-red-400">{kpiLoading ? '...' : `$${kpis.totalExpenses.toLocaleString()}`}</span></div>
+                </div>
+                {/* Net Income KPI Box */}
+                <div className="glass-panel p-5 rounded-xl hover:translate-y-[-3px] transition-transform col-span-1">
+                    <h3 className="text-gray-400 text-sm font-semibold mb-1">Net Income</h3>
+                    <div className="flex items-end justify-between"><span className="text-2xl font-bold text-purple-400">{kpiLoading ? '...' : `$${kpis.netIncome.toLocaleString()}`}</span></div>
                 </div>
             </div>
             
-            <div className="glass-panel p-8 text-center mt-10 rounded-xl">
-                 <h2 className="text-xl text-gray-300">QuickBooks Data is Synced and Ready</h2>
-                 <p className="text-sm mt-2 text-gray-500">Ask the AI questions on the left to see dynamic reporting based on live actuals.</p>
+            {/* Massive Chart Engine Render Canvas */}
+            <div className="glass-panel p-6 rounded-xl w-full h-[400px] relative z-10 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                {kpiLoading ? (
+                   <div className="flex h-full w-full items-center justify-center text-gray-500 animate-pulse">Syncing Visual Financials from Intuit Data Pipeline...</div>
+                ) : (
+                   <canvas ref={chartRef}></canvas>
+                )}
             </div>
         </div>
     </div>
