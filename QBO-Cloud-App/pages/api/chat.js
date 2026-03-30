@@ -16,8 +16,51 @@ export default async function handler(req) {
 
   const { messages } = await req.json();
 
+  // Read Secure Cookies for QBO Keys
+  const cookieHeader = req.headers.get('cookie') || '';
+  const cookies = Object.fromEntries(cookieHeader.split('; ').filter(Boolean).map(c => c.split('=')));
+  const accessToken = cookies.qbo_access_token;
+  const realmId = cookies.qbo_realm_id;
+
+  // Dynamically fetch live QBO Data
+  let qboContext = "No live QuickBooks data available.";
+  if (accessToken && realmId) {
+      try {
+          // Hit the Intuit Production YTD Profit & Loss Report endpoint
+          const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=70`, {
+              headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Accept': 'application/json'
+              }
+          });
+          
+          if (qboRes.ok) {
+              const qboData = await qboRes.json();
+              qboContext = `LIVE QUICKBOOKS YTD DATA:\n`;
+              // Extract the top level summary rows (Gross Profit, Total Expenses, Net Income)
+              if (qboData.Rows && qboData.Rows.Row) {
+                  qboData.Rows.Row.forEach(row => {
+                      if (row.Summary && row.Summary.ColData && row.Summary.ColData.length >= 2) {
+                          qboContext += `- ${row.Summary.ColData[0].value}: $${row.Summary.ColData[1].value}\n`;
+                      }
+                  });
+              }
+          } else {
+              qboContext = "Error: Connected to Intuit, but failed to extract P&L report.";
+          }
+      } catch (e) {
+          console.error("QBO Fetch Error:", e);
+      }
+  }
+
   // Set up the system prompt to impersonate the Knockout CFO
-  const systemPrompt = `You are an AI Financial Analyst for 'Knockout'. Keep answers concise. Connect your answers to QuickBooks data logic (mocked for now, assume Gross Profit is 58.4%, Direct LER target is 3.0x). Answer questions regarding Marketing, Fuel, and Net Income goals professionally.`;
+  const systemPrompt = `You are a strict, top-tier AI Financial Analyst for 'Knockout'. Keep answers incredibly concise and professional. 
+
+Below is the literal, live Profit & Loss data synced right now from the user's QuickBooks Online:
+---
+${qboContext}
+---
+When answering questions regarding their deposits, gross profit, expenses, or net income, you MUST use the exact numbers printed above. Do not invent numbers.`;
 
   // Map messages into strict Gemini native format
   const geminiContents = messages.map(m => ({

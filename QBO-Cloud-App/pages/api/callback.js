@@ -15,9 +15,16 @@ export default async function handler(req, res) {
     // Exchange the authorization code for an Access Token
     const authResponse = await oauthClient.createToken(parseRedirect);
     
-    // In a real production app, we would save authResponse.getJson() to a secure Database
-    // Because this is a prototype, we just redirect back to the app with a success flag
-    console.log('QBO Tokens successfully generated!');
+    // The Realm ID (Company ID) is passed in the query string by Intuit
+    const realmId = req.query.realmId;
+
+    // Securely set Cookies to remember the tokens on Vercel
+    res.setHeader('Set-Cookie', [
+      `qbo_access_token=${authResponse.getJson().access_token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600; Secure`,
+      `qbo_realm_id=${realmId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600; Secure`
+    ]);
+
+    console.log('QBO Tokens successfully saved to Secure Browser Cookies!');
     
     // Redirect back to our React dashboard
     res.redirect('/?qboConnected=true');
