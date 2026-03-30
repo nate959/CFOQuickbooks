@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const oauthClient = new OAuthClient({
       clientId: process.env.QBO_CLIENT_ID,
       clientSecret: process.env.QBO_CLIENT_SECRET,
-      environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+      environment: 'production',
       redirectUri: process.env.QBO_REDIRECT_URI,
     });
 

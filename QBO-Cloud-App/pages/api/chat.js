@@ -32,20 +32,9 @@ export default async function handler(req) {
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
           });
 
-          // Unofficial intelligent Sandbox Fallback logic (Vercel hides URL bindings)
-          if (!qboRes.ok) {
-              const sandboxRes = await fetch(`https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65`, {
-                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
-              });
-              if (sandboxRes.ok || sandboxRes.status === 200) {
-                 qboRes = sandboxRes;
-                 isSandbox = true;
-              }
-          }
-          
           if (qboRes.ok) {
               const qboData = await qboRes.json();
-              qboContext = `LIVE QUICKBOOKS YTD DATA ${isSandbox ? "(SANDBOX MODE test-data)" : "(PRODUCTION LIVE DATA)"}:\n`;
+              qboContext = `LIVE QUICKBOOKS YTD DATA (PRODUCTION LIVE DATA):\n`;
               // Extract the top level summary rows (Gross Profit, Total Expenses, Net Income)
               if (qboData.Rows && qboData.Rows.Row) {
                   qboData.Rows.Row.forEach(row => {
