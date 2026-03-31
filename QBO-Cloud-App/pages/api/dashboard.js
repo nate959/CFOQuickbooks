@@ -18,21 +18,27 @@ export default async function handler(req) {
   }
 
   try {
-    // 2. Fetch the massive detailed matrix natively from Intuit (summarized by month for trend analysis)
-    const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    });
+    // 2. Fetch BOTH Profit & Loss AND Cash Flow Statements simultaneously
+    const [pnlRes, cashFlowRes] = await Promise.all([
+      fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month`, {
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
+      }),
+      fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/CashFlow?minorversion=65&summarize_column_by=Month`, {
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
+      })
+    ]);
 
-    if (!qboRes.ok) {
-      const errBody = await qboRes.text();
-      console.error("Dashboard Fetch Error:", errBody);
-      return new Response(JSON.stringify({ error: "Failed to read QBO Data" }), { status: 500 });
+    if (!pnlRes.ok) {
+      const errBody = await pnlRes.text();
+      console.error("Dashboard P&L Fetch Error:", errBody);
+      return new Response(JSON.stringify({ error: "Failed to read QBO P&L Data" }), { status: 500 });
     }
 
-    const qboData = await qboRes.json();
+    const qboData = await pnlRes.json();
+    let cashFlowData = null;
+    if (cashFlowRes.ok) {
+        cashFlowData = await cashFlowRes.json();
+    }
     
     // 3. The CEO Omni-Extraction Engine
     let totalIncome = 0;
@@ -42,7 +48,11 @@ export default async function handler(req) {
 
     let labels = [];
     let incomeTrend = [];
+    let expenseTrend = [];
     let netTrend = [];
+    let ytdAccumulatedProfit = [];
+    let cashTrend = [];
+    
     let expensePie = {
         'Labor & Payroll': 0,
         'Marketing & Comm': 0,
@@ -56,8 +66,8 @@ export default async function handler(req) {
         labels = qboData.Columns.Column.slice(1, -1).map(c => c.ColTitle);
     }
 
-    // Advanced recursive ledger crawler to traverse Intuit's deeply nested sub-accounts
-    function scrapeRows(rows, inExp) {
+    // Advanced recursive ledger crawler for Profit & Loss
+    function scrapePnlRows(rows, inExp) {
         if (!rows || !rows.Row) return;
         
         rows.Row.forEach(row => {
@@ -70,22 +80,32 @@ export default async function handler(req) {
                 else if (cat.includes('income')) currentExp = false;
             }
             
-            // Scrape Master Summary rows for High-Level UI visual KPIs
+            // Scrape Master Summary rows for High-Level UI visual KPIs and Trends
             if (row.Summary && row.Summary.ColData && row.Summary.ColData.length >= 2) {
                 const label = row.Summary.ColData[0].value.toLowerCase();
                 const ytdValue = parseFloat(row.Summary.ColData[row.Summary.ColData.length - 1].value) || 0;
                 const monthlyValues = row.Summary.ColData.slice(1, -1).map(col => parseFloat(col.value) || 0);
 
                 if (label.includes("total income")) { totalIncome = ytdValue; incomeTrend = monthlyValues; }
-                if (label.includes("total expenses") || label.includes("total cost of goods sold")) totalExpenses += ytdValue;
+                if (label.includes("total expenses") || label.includes("total cost of goods sold")) { totalExpenses += ytdValue; expenseTrend = monthlyValues; }
                 if (label.includes("gross profit")) grossProfit = ytdValue;
-                if (label.includes("net income") || label.includes("net operating income")) { netIncome = ytdValue; netTrend = monthlyValues; }
+                if (label.includes("net income") || label.includes("net operating income")) { 
+                    netIncome = ytdValue; 
+                    netTrend = monthlyValues; 
+                    
+                    // Build YTD Accumulating Line
+                    let runningTotal = 0;
+                    ytdAccumulatedProfit = monthlyValues.map(val => {
+                        runningTotal += val;
+                        return runningTotal;
+                    });
+                }
             }
             
-            // Scrape granular 'Itty Bitty Things' individually and safely categorize them for the Doughtnut Pie Chart
+            // Scrape granular 'Itty Bitty Things' individually and safely categorize them for the Pie Chart
             if (row.type === 'Data' && row.ColData && currentExp) {
                 const label = row.ColData[0].value.toLowerCase();
-                const ytdValue = parseFloat(row.ColData[row.ColData.length - 1].value) || 0; // Use YTD value for pie
+                const ytdValue = parseFloat(row.ColData[row.ColData.length - 1].value) || 0; 
                 
                 if (label.includes("payroll") || label.includes("wage") || label.includes("salar") || label.includes("contract") || label.includes("1099") || label.includes("labor") || label.includes("officer") || label.includes("inspector") || label.includes("compensation")) {
                     expensePie['Labor & Payroll'] += ytdValue;
@@ -100,16 +120,37 @@ export default async function handler(req) {
                 }
             }
             
-            // Dig endlessly deeper into sub-contractor accounts unconditionally
-            if (row.Rows) scrapeRows(row.Rows, currentExp);
+            if (row.Rows) scrapePnlRows(row.Rows, currentExp);
         });
     }
 
-    if (qboData.Rows) {
-        scrapeRows(qboData.Rows, false);
+    // Crawler for Cash Flow Matrix
+    function scrapeCashFlowRows(rows) {
+        if (!rows || !rows.Row) return;
+        
+        rows.Row.forEach(row => {
+            if (row.Summary && row.Summary.ColData && row.Summary.ColData.length >= 2) {
+                const label = row.Summary.ColData[0].value.toLowerCase();
+                
+                // We want specifically the Operating Cash Flow or Net Cash Increase
+                if (label.includes("operating activities") || label.includes("cash and cash equivalents") || label.includes("net cash")) {
+                    // Overwrite cashTrend with the lowest level master total we find. "Net cash increase" usually sits at the very bottom.
+                    cashTrend = row.Summary.ColData.slice(1, -1).map(col => parseFloat(col.value) || 0);
+                }
+            }
+            if (row.Rows) scrapeCashFlowRows(row.Rows);
+        });
     }
 
-    // 4. Send the completely formatted Master Graph payload back to React
+    if (qboData.Rows) scrapePnlRows(qboData.Rows, false);
+    if (cashFlowData && cashFlowData.Rows) scrapeCashFlowRows(cashFlowData.Rows);
+
+    // If CashFlow API completely failed or is empty, fallback to Net Income array to prevent graph crashing
+    if (cashTrend.length === 0 && netTrend.length > 0) {
+        cashTrend = [...netTrend];
+    }
+
+    // 4. Send the massively expanded 4-Quadrant Graph payload back to React
     return new Response(JSON.stringify({
       totalIncome,
       totalExpenses,
@@ -117,7 +158,10 @@ export default async function handler(req) {
       netIncome,
       labels,
       incomeTrend,
+      expenseTrend,
       netTrend,
+      ytdAccumulatedProfit,
+      cashTrend,
       expensePie
     }), {
       status: 200,
