@@ -26,9 +26,14 @@ export default async function handler(req) {
   let qboContext = "No live QuickBooks data available.";
   if (accessToken && realmId) {
       try {
+          // Dynamically calculate a massive 36-month omni-sweep
+          const currentYear = new Date().getFullYear();
+          const startDate = `${currentYear - 2}-01-01`; // From 2024
+          const endDate = `${currentYear}-12-31`; // To end of 2026
+
           // Attempt Intuit Production YTD Profit & Loss Report endpoint
           let isSandbox = false;
-          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month&start_date=2025-01-01&end_date=2026-12-31`, {
+          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month&start_date=${startDate}&end_date=${endDate}`, {
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
           });
 
