@@ -18,13 +18,8 @@ export default async function handler(req) {
   }
 
   try {
-    // Explicitly scan the full historic grid to detect any available data
-    const currentYear = new Date().getFullYear();
-    const dashStart = `${currentYear - 2}-01-01`;
-    const dashEnd = `${currentYear}-12-31`;
-
-    // 2. Fetch the actual Profit & Loss statement from Intuit Production
-    const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&start_date=${dashStart}&end_date=${dashEnd}`, {
+    // 2. Fetch the actual YTD Profit & Loss statement natively from Intuit Production
+    const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json'
