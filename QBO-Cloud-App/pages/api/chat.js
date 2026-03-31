@@ -28,7 +28,7 @@ export default async function handler(req) {
       try {
           // Attempt Intuit Production YTD Profit & Loss Report endpoint
           let isSandbox = false;
-          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month`, {
+          let qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&summarize_column_by=Month&start_date=2025-01-01&end_date=2026-12-31`, {
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
           });
 

@@ -19,7 +19,7 @@ export default async function handler(req) {
 
   try {
     // 2. Fetch the actual Profit & Loss statement from Intuit Production
-    const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65`, {
+    const qboRes = await fetch(`https://quickbooks.api.intuit.com/v3/company/${realmId}/reports/ProfitAndLoss?minorversion=65&start_date=2026-01-01&end_date=2026-12-31`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json'
